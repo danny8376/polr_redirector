@@ -117,8 +117,8 @@ def do_redirect(env)
   end
 end
 
-static_headers do |response, filepath, filestat|
-  response.headers.add("Cache-Control", "no-cache")
+before_all do |env|
+  env.response.headers["Cache-Control"] = "no-cache"
 end
 
 get "/:short_url" do |env|
