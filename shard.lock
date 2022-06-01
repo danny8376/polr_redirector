@@ -1,0 +1,38 @@
+version: 2.0
+shards:
+  backtracer:
+    git: https://github.com/sija/backtracer.cr.git
+    version: 1.2.1
+
+  db:
+    git: https://github.com/crystal-lang/crystal-db.git
+    version: 0.11.0
+
+  exception_page:
+    git: https://github.com/crystal-loot/exception_page.git
+    version: 0.2.2
+
+  geoip2:
+    git: https://github.com/delef/geoip2.cr.git
+    version: 0.5.3
+
+  ipaddress:
+    git: https://github.com/sija/ipaddress.cr.git
+    version: 0.2.1
+
+  kemal:
+    git: https://github.com/kemalcr/kemal.git
+    version: 1.1.2
+
+  maxminddb:
+    git: https://github.com/delef/maxminddb.cr.git
+    version: 1.5.0
+
+  mysql:
+    git: https://github.com/crystal-lang/crystal-mysql.git
+    version: 0.14.0
+
+  radix:
+    git: https://github.com/luislavena/radix.git
+    version: 0.4.1
+

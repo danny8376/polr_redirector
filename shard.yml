@@ -1,0 +1,21 @@
+name: polr_redirector
+version: 0.1.0
+
+authors:
+  - DannyAAM <danny@saru.moe>
+
+targets:
+  polr_redirector:
+    main: src/server.cr
+
+dependencies:
+  mysql:
+    github: crystal-lang/crystal-mysql
+  kemal:
+    github: kemalcr/kemal
+  geoip2:
+    github: delef/geoip2.cr
+
+crystal: 1.1.1
+
+license: MIT

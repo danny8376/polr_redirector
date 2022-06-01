@@ -1,0 +1,20 @@
+bind:
+  host: 127.0.0.1
+  port: 54321
+  # leave unix empty to use tcp, otherwise with unix socket
+  unix:
+  perm: 0o777
+# this is global one
+geo_db:
+sites:
+  example.com:
+    db_uri: mysql://user:password@server:port/database
+    # seperate db uri (pool) (mainly for args) for adv analytics queries
+    # empty to use the same pool as above
+    analytics_db_uri:
+    adv_analytics: false
+    # if this is true, it'll fetch original 404 page from the site, and scheme is for this option only
+    fetch_404: false
+    scheme: http
+    # this is per site one
+    geo_db:
