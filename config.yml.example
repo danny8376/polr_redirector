@@ -13,6 +13,10 @@ sites:
     # empty to use the same pool as above
     analytics_db_uri:
     adv_analytics: false
+    cache:
+      size: 100 # or 0 to disable cache
+      expire: 5 # in secs
+      neg_expire: 5 # in secs, for non-existing link
     # if this is true, it'll fetch original 404 page from the site, and scheme is for this option only
     fetch_404: false
     scheme: http

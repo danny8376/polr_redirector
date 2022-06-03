@@ -2,11 +2,24 @@ require "kemal"
 require "uri"
 require "db"
 require "mysql"
+require "lru-cache"
 require "geoip2"
 
 require "./config"
 
-Sites = Hash(String, Tuple(DB::Database, DB::Database, GeoIP2::Database?)).new
+class Cache(K, V) < LRUCache(K, V)
+  def initialize(*, max_size : Int32? = nil, @expire : Time::Span? = nil, @neg_expire : Time::Span? = nil)
+    super(max_size: max_size)
+  end
+
+  def set(key : K, value : V, neg : Bool = false)
+    expire = neg ? @neg_expire : @expire
+    set(key, value, expire.nil? ? nil : Time.utc + expire)
+  end
+end
+
+alias CacheTuple = Tuple(Int8, String, String, Int32?)
+Sites = Hash(String, Tuple(DB::Database, DB::Database, GeoIP2::Database?, Cache(String, CacheTuple)?)).new
 E404Cache = Hash(String, String).new
 
 struct Config
@@ -17,13 +30,20 @@ struct Config
   private macro use_adb(sc)
     sc.adv_analytics && !sc.analytics_db_uri.empty?
   end
+  private macro cache(sc)
+    if sc.cache.size > 0
+      Cache(String, CacheTuple).new(max_size: sc.cache.size, expire: sc.cache.expire.seconds, neg_expire: sc.cache.neg_expire.seconds)
+    else
+      nil
+    end
+  end
   def self.load(yaml = File.read("./config.yml"))
     old_conf = @@conf
     @@conf = Config.from_yaml yaml
     old_sites = Sites.keys
     new_sites = @@conf.sites.keys
     (old_sites - new_sites).each do |site|
-      Sites.delete(site).try do |db, adb, _|
+      Sites.delete(site).try do |db, adb, _, _|
         db.close
         adb.close
       end
@@ -34,11 +54,11 @@ struct Config
       geo = GeoIP2.open(geo_db(sc)) rescue nil
       db = DB.open(sc.db_uri)
       adb = use_adb(sc) ? DB.open(sc.analytics_db_uri) : db
-      Sites[site] = {db, adb, geo}
+      Sites[site] = {db, adb, geo, cache(sc)}
       spawn { E404Cache[site] = HTTP::Client.get("#{sc.scheme}://#{site}/admin/this/page/does/not/exist").body } if sc.fetch_404
     end
     (new_sites & old_sites).each do |site|
-      odb, oadb, _ = Sites[site]
+      odb, oadb, _, _ = Sites[site]
       osc, sc = old_conf.sites[site], @@conf.sites[site]
       db = if osc.db_uri == sc.db_uri
              odb
@@ -55,7 +75,7 @@ struct Config
               use_adb(sc) ? DB.open(sc.analytics_db_uri) : db
             end
       geo = GeoIP2.open(geo_db(sc)) rescue nil
-      Sites[site] = {db, adb, geo}
+      Sites[site] = {db, adb, geo, cache(sc)}
     end
     @@conf
   end
@@ -74,16 +94,37 @@ def response(env, code, body = "")
   env.response.print body
 end
 
+def query_link(db, cache, short_url)
+  val = cache.try &.get(short_url)
+  if val.nil?
+    db.query "SELECT is_disabled, secret_key, long_url, id FROM `links` WHERE short_url=?", short_url do |rs|
+      if rs.move_next
+        val = rs.read Int8, String, String, Int32
+        cache.try &.set(short_url, val)
+      else
+        val = {0_i8, "", "", nil}
+        cache.try &.set(short_url, val, neg: true)
+      end
+    end
+  end
+  val
+end
+
 def do_redirect(env)
   host = env.request.headers["Host"]?
   short_url = env.params.url["short_url"]
   secret_key = env.params.url["secret_key"]?
   site = Sites[host]?
   if site
-    site.try do |db, adb, geo|
-      db.query "SELECT is_disabled, secret_key, long_url, id FROM `links` WHERE short_url=?", short_url do |rs|
-        if rs.move_next
-          is_disabled, link_secret_key, long_url, id = rs.read Int8, String, String, Int32
+    site.try do |db, adb, geo, cache|
+      link_data = query_link db, cache, short_url
+      if link_data.nil?
+        response env, 404
+      else
+        is_disabled, link_secret_key, long_url, id = link_data
+        if id.nil?
+          response env, 404
+        else
           if is_disabled != 0
             response env, 404
             return
@@ -108,8 +149,6 @@ def do_redirect(env)
             end
           end
           redirect env, long_url
-        else
-          response env, 404
         end
       end
     end
@@ -131,12 +170,7 @@ get "/:short_url/:secret_key" do |env|
 end
 
 error 404 do |env|
-  host = env.request.headers["Host"]?
-  if Config.conf.sites[host]?.try &.fetch_404
-    E404Cache[host]? || "HTTP 404"
-  else
-    "HTTP 404"
-  end
+  E404Cache[env.request.headers["Host"]?]? || "HTTP 404"
 end
 
 Signal::HUP.trap do
