@@ -92,11 +92,11 @@ def do_redirect(env)
             response env, 403
             return
           end
-          db.exec "UPDATE `links` SET clicks=clicks+1 WHERE short_url=?", short_url
-          Config.conf.sites[host].try do |sc|
-            if sc.adv_analytics
-              headers = env.request.headers
-              spawn do # do this in another fiber to reduce the response speed
+          headers = env.request.headers
+          spawn do # do analytics in another fiber to reduce the response speed
+            adb.exec "UPDATE `links` SET clicks=clicks+1 WHERE short_url=?", short_url
+            Config.conf.sites[host].try do |sc|
+              if sc.adv_analytics
                 ip = headers["X-Real-IP"]
                 country = geo.try(&.country?(ip)).try(&.country.iso_code) rescue nil
                 referer = headers["Referer"]?
