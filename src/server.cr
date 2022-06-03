@@ -93,6 +93,7 @@ def do_redirect(env)
             return
           end
           headers = env.request.headers
+          now = Time.utc
           spawn do # do analytics in another fiber to reduce the response speed
             adb.exec "UPDATE `links` SET clicks=clicks+1 WHERE short_url=?", short_url
             Config.conf.sites[host].try do |sc|
@@ -102,7 +103,7 @@ def do_redirect(env)
                 referer = headers["Referer"]?
                 rhost = URI.parse(referer.not_nil!).host rescue nil
                 ua = headers["User-Agent"]?
-                adb.exec "INSERT INTO `clicks` (ip, country, referer, referer_host, user_agent, link_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", ip, country, referer, rhost, ua, id
+                adb.exec "INSERT INTO `clicks` (ip, country, referer, referer_host, user_agent, link_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", ip, country, referer, rhost, ua, id, now, now
               end
             end
           end
