@@ -14,7 +14,7 @@ bin/polr_redirector
 
 ## Usage
 
-Before start, edit the config.yml as you need. You may want to check [the doc of crystal-db](https://crystal-lang.org/reference/1.4/database/connection_pool.html#configuration) about how to configure db_uri option.
+Before start, edit the config.yml as you need. You may want to check [the doc of crystal-db](https://crystal-lang.org/reference/1.4/database/connection_pool.html#configuration) about how to configure db_conf option.
 
 First, run this server with ways you like.
 For example, with systemd like:
