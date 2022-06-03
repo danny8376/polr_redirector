@@ -1,3 +1,4 @@
+require "poncho"
 require "kemal"
 require "uri"
 require "db"
@@ -28,7 +29,7 @@ struct Config
     sc.geo_db.empty? ? @@conf.geo_db : sc.geo_db
   end
   private macro use_adb(sc)
-    sc.adv_analytics && !sc.analytics_db_uri.empty?
+    sc.adv_analytics && !sc.analytics_db_conf.empty?
   end
   private macro cache(sc)
     if sc.cache.size > 0
@@ -37,12 +38,21 @@ struct Config
       nil
     end
   end
-  private macro fetch404(site, scheme)
-    spawn { E404Cache[site] = HTTP::Client.get("#{scheme}://#{site}/admin/this/page/does/not/exist").body }
+  def self.fetch404(site)
+    spawn { E404Cache[site] = HTTP::Client.get("#{@@conf.sites[site].scheme}://#{site}/admin/this/page/does/not/exist").body }
+  end
+  def self.parse_env
+    @@conf.sites.transform_values! do |sc|
+      e = Poncho::Parser.from_file sc.dot_env
+      sc.db_uri = "#{e["DB_CONNECTION"]}://#{e["DB_USERNAME"]}:#{e["DB_PASSWORD"]}@#{e["DB_HOST"]}:#{e["DB_PORT"]}/#{e["DB_DATABASE"]}"
+      sc.adv_analytics = e["SETTING_ADV_ANALYTICS"] == "true"
+      sc
+    end
   end
   def self.load(yaml = File.read("./config.yml"))
     old_conf = @@conf
     @@conf = Config.from_yaml yaml
+    parse_env
     old_sites = Sites.keys
     new_sites = @@conf.sites.keys
     (old_sites - new_sites).each do |site|
@@ -55,30 +65,30 @@ struct Config
     (new_sites - old_sites).each do |site|
       sc = Config.conf.sites[site]
       geo = GeoIP2.open(geo_db(sc)) rescue nil
-      db = DB.open(sc.db_uri)
-      adb = use_adb(sc) ? DB.open(sc.analytics_db_uri) : db
+      db = DB.open(sc.db_uri + sc.db_conf)
+      adb = use_adb(sc) ? DB.open(sc.db_uri + sc.analytics_db_conf) : db
       Sites[site] = {db, adb, geo, cache(sc)}
-      fetch404 site, sc.scheme if sc.fetch_404
+      fetch404 site if sc.fetch_404
     end
     (new_sites & old_sites).each do |site|
       odb, oadb, _, _ = Sites[site]
       osc, sc = old_conf.sites[site], @@conf.sites[site]
-      db = if osc.db_uri == sc.db_uri
+      db = if osc.db_uri == sc.db_uri && osc.db_conf == sc.db_conf
              odb
            else
              odb.close
-             DB.open(sc.db_uri)
+             DB.open(sc.db_uri + sc.db_conf)
            end
-      adb = if use_adb(osc) == use_adb(sc) && osc.analytics_db_uri == sc.analytics_db_uri
+      adb = if use_adb(osc) == use_adb(sc) && osc.db_uri == sc.db_uri && osc.analytics_db_conf == sc.analytics_db_conf
               oadb
             else
               oadb.close if use_adb(osc)
-              use_adb(sc) ? DB.open(sc.analytics_db_uri) : db
+              use_adb(sc) ? DB.open(sc.db_uri + sc.analytics_db_conf) : db
             end
       geo = GeoIP2.open(geo_db(sc)) rescue nil
       Sites[site] = {db, adb, geo, cache(sc)}
       if sc.fetch_404
-        fetch404 site, sc.scheme
+        fetch404 site
       else
         E404Cache.delete(site)
       end

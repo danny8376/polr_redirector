@@ -36,6 +36,10 @@ shards:
     git: https://github.com/crystal-lang/crystal-mysql.git
     version: 0.14.0
 
+  poncho:
+    git: https://github.com/danny8376/poncho.git
+    version: 0.4.0+git.commit.93184cabfcd3b3bb6411920ec8c662cc3650026c
+
   radix:
     git: https://github.com/luislavena/radix.git
     version: 0.4.1

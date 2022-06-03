@@ -16,13 +16,17 @@ struct Config
       property neg_expire : Int32
     end
     include YAML::Serializable
-    property db_uri        : String
-    property analytics_db_uri : String
-    property adv_analytics : Bool
-    property cache         : Cache
-    property fetch_404     : Bool
-    property scheme        : String
-    property geo_db        : String
+    property dot_env   : String
+    @[YAML::Field(ignore: true)]
+    property db_uri    : String = ""
+    property db_conf   : String
+    property analytics_db_conf : String
+    @[YAML::Field(ignore: true)]
+    property adv_analytics : Bool = false
+    property cache     : Cache
+    property fetch_404 : Bool
+    property scheme    : String
+    property geo_db    : String
   end
   include YAML::Serializable
   property bind   : Bind

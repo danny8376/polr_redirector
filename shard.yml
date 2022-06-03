@@ -9,6 +9,10 @@ targets:
     main: src/server.cr
 
 dependencies:
+  poncho:
+    #github: icyleaf/poncho
+    github: danny8376/poncho
+    branch: fix_pure_empty_value
   mysql:
     github: crystal-lang/crystal-mysql
   kemal:
