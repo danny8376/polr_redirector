@@ -37,6 +37,9 @@ struct Config
       nil
     end
   end
+  private macro fetch404(site, scheme)
+    spawn { E404Cache[site] = HTTP::Client.get("#{scheme}://#{site}/admin/this/page/does/not/exist").body }
+  end
   def self.load(yaml = File.read("./config.yml"))
     old_conf = @@conf
     @@conf = Config.from_yaml yaml
@@ -55,7 +58,7 @@ struct Config
       db = DB.open(sc.db_uri)
       adb = use_adb(sc) ? DB.open(sc.analytics_db_uri) : db
       Sites[site] = {db, adb, geo, cache(sc)}
-      spawn { E404Cache[site] = HTTP::Client.get("#{sc.scheme}://#{site}/admin/this/page/does/not/exist").body } if sc.fetch_404
+      fetch404 site, sc.scheme if sc.fetch_404
     end
     (new_sites & old_sites).each do |site|
       odb, oadb, _, _ = Sites[site]
@@ -63,8 +66,6 @@ struct Config
       db = if osc.db_uri == sc.db_uri
              odb
            else
-             odb.close
-             odb.close
              odb.close
              DB.open(sc.db_uri)
            end
@@ -76,6 +77,11 @@ struct Config
             end
       geo = GeoIP2.open(geo_db(sc)) rescue nil
       Sites[site] = {db, adb, geo, cache(sc)}
+      if sc.fetch_404
+        fetch404 site, sc.scheme
+      else
+        E404Cache.delete(site)
+      end
     end
     @@conf
   end
